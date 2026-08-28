@@ -697,7 +697,12 @@ const APPDATA = {"dayMap":{"2026-09-04":"Day1","2026-09-07":"Day2","2026-09-08":
 
   // ---------- duty lookup ----------
   function bareName(name){
-    return String(name || '').replace(/(主任|副主任|老師|校長|副校長)$/,'').trim();
+    let s = String(name || '').trim();
+    // Strip a trailing parenthetical, e.g. "許碧玉老師  (1A班主任)" -> "許碧玉老師"
+    s = s.replace(/[（(][^）)]*[）)]\s*$/, '').trim();
+    // Strip trailing role/title words, e.g. "老師" / "主任" / "副校長"
+    s = s.replace(/(副校長|校長|副主任|主任|老師)+$/, '').trim();
+    return s;
   }
   function getDuty(teacher, dayKey, slot){
     const entries = (DUTY_INDEX[bareName(teacher.name)] || {})[dayKey];
