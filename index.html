@@ -706,6 +706,11 @@ td.cell.rg-cell{padding:3px; vertical-align:top;}
 .rf-entry-fields{display:flex; gap:8px;}
 .rf-entry-field{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
 .rf-entry-field label{font-size:10.5px; font-weight:700; color:var(--text-muted);}
+.rf-entry-teacher-other{
+  border:1px solid var(--grey-100); border-radius:7px; padding:6px 8px;
+  font-size:12.5px; font-family:inherit; color:var(--text); width:100%;
+}
+.rf-entry-teacher-other:focus{outline:2px solid var(--blue-500); outline-offset:0;}
 .rf-add-entry-btn{
   background:none; border:1.5px dashed var(--blue-500); color:var(--blue-600);
   font-weight:700; font-size:12px; padding:8px 12px; border-radius:8px;
@@ -2000,7 +2005,10 @@ const APPDATA = {"dayMap":{"2026-09-04":"Day1","2026-09-07":"Day2","2026-09-08":
     }
   });
 
-  const CLASS_FORM_OPTIONS = CLASSES.map(c => c.id).concat(SPECIAL_CLASS_VALUES);
+  // Only 空堂 is offered in the 班別 dropdown; 進修 stays in SPECIAL_CLASS_VALUES
+  // purely so any existing record that already used it still gets the
+  // distinct "special" styling, but it's no longer selectable for new entries.
+  const CLASS_FORM_OPTIONS = CLASSES.map(c => c.id).concat(['空堂']);
 
   function teacherDisplayName(shortName){
     return TEACHER_FULLNAME_BY_SHORT[shortName] || shortName;
@@ -2269,11 +2277,15 @@ const APPDATA = {"dayMap":{"2026-09-04":"Day1","2026-09-07":"Day2","2026-09-08":
 
   const ENTRY_BADGE_COLORS = ['#3b5bfd', '#1e9e6a', '#8e44ad', '#e67e22'];
 
+  const TEACHER_OTHER_VALUE = '__other__';
+
   function entryRowHtml(entry){
     entry = entry || {teacher:'', class:''};
+    const matchedOption = TEACHER_FORM_OPTIONS.find(o => o.short === entry.teacher);
+    const isOther = !!entry.teacher && !matchedOption;
     const teacherOpts = '<option value="">請選擇</option>' + TEACHER_FORM_OPTIONS.map(o =>
       '<option value="' + escapeHtml(o.short) + '"' + (o.short === entry.teacher ? ' selected' : '') + '>' + escapeHtml(o.name) + '</option>'
-    ).join('');
+    ).join('') + '<option value="' + TEACHER_OTHER_VALUE + '"' + (isOther ? ' selected' : '') + '>其他（自行輸入）</option>';
     const classOpts = '<option value="">請選擇</option>' + CLASS_FORM_OPTIONS.map(c =>
       '<option value="' + escapeHtml(c) + '"' + (c === entry.class ? ' selected' : '') + '>' + escapeHtml(c) + '</option>'
     ).join('');
@@ -2284,7 +2296,11 @@ const APPDATA = {"dayMap":{"2026-09-04":"Day1","2026-09-07":"Day2","2026-09-08":
         '<button type="button" class="rf-entry-remove" aria-label="移除">✕</button>' +
       '</div>' +
       '<div class="rf-entry-fields">' +
-        '<div class="rf-entry-field"><label>教師</label><select class="rf-entry-teacher">' + teacherOpts + '</select></div>' +
+        '<div class="rf-entry-field">' +
+          '<label>教師</label>' +
+          '<select class="rf-entry-teacher">' + teacherOpts + '</select>' +
+          '<input type="text" class="rf-entry-teacher-other" placeholder="輸入姓名" value="' + (isOther ? escapeHtml(entry.teacher) : '') + '"' + (isOther ? '' : ' style="display:none;"') + '>' +
+        '</div>' +
         '<div class="rf-entry-field"><label>班別</label><select class="rf-entry-class">' + classOpts + '</select></div>' +
       '</div>' +
       '</div>';
@@ -2311,10 +2327,13 @@ const APPDATA = {"dayMap":{"2026-09-04":"Day1","2026-09-07":"Day2","2026-09-08":
   }
 
   function readEntriesFromForm(){
-    return Array.from(document.querySelectorAll('#rfEntries .rf-entry-card')).map(row => ({
-      teacher: row.querySelector('.rf-entry-teacher').value,
-      class: row.querySelector('.rf-entry-class').value
-    })).filter(e => e.teacher && e.class);
+    return Array.from(document.querySelectorAll('#rfEntries .rf-entry-card')).map(row => {
+      const teacherSel = row.querySelector('.rf-entry-teacher').value;
+      const teacher = teacherSel === TEACHER_OTHER_VALUE
+        ? row.querySelector('.rf-entry-teacher-other').value.trim()
+        : teacherSel;
+      return {teacher: teacher, class: row.querySelector('.rf-entry-class').value};
+    }).filter(e => e.teacher && e.class);
   }
 
   // prefill (optional, only used when record is null): {date, slotId} -- pre-fills
@@ -2674,6 +2693,18 @@ const APPDATA = {"dayMap":{"2026-09-04":"Day1","2026-09-07":"Day2","2026-09-08":
       if(cards.length <= 1){ btn.closest('.rf-entry-card').remove(); addEntryRow(null); return; }
       btn.closest('.rf-entry-card').remove();
       renumberEntries();
+    });
+    document.getElementById('rfEntries').addEventListener('change', (e) => {
+      if(!e.target.classList.contains('rf-entry-teacher')) return;
+      const card = e.target.closest('.rf-entry-card');
+      const otherInput = card.querySelector('.rf-entry-teacher-other');
+      if(e.target.value === TEACHER_OTHER_VALUE){
+        otherInput.style.display = '';
+        otherInput.focus();
+      } else {
+        otherInput.style.display = 'none';
+        otherInput.value = '';
+      }
     });
   }
 
